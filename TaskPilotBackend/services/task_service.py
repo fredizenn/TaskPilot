@@ -1,48 +1,47 @@
+from models.task import TaskModel
 from schemas.task import Task, TaskCreate
 from services.exceptions import TaskNotFoundError
+from sqlalchemy.orm import Session
 
-tasks = []
-
-next_task_id = 1
-
-def update_task_service(task_id, title, description):
-    for task in tasks:
-        if task.id == task_id:
-            task.title = title
-            task.description = description
-            return task
-    raise TaskNotFoundError(task_id)
+def update_task_service(db: Session, task_id, title, description):
+    task = db.query(TaskModel).filter(TaskModel.id == task_id).first()
+    if task is None:
+        raise TaskNotFoundError(task_id)
+    if title is not None:
+        task.title = title
+    if description is not None:
+        task.description = description
+    db.commit()
+    db.refresh(task)
+    return task
     
-def get_tasks_service():
-    return tasks
 
-def create_task_service(task: TaskCreate):
-    global next_task_id
-    
-    new_task = Task(
-        id=next_task_id,
+
+def create_task_service(db: Session, task: TaskCreate):
+    new_task = TaskModel(
         title=task.title,
         description=task.description
     )
-    
-    
-    tasks.append(new_task)
-    
-    next_task_id += 1
-    
+    db.add(new_task)
+    db.commit()
+    db.refresh(new_task)
     return new_task
 
-def get_task_service(task_id: int):
-    for task in tasks:
-        if task.id == task_id:
-            return task
-            
-    raise TaskNotFoundError(task_id)
+def get_task_service(db: Session, task_id: int):
+    task = db.query(TaskModel).filter(TaskModel.id == task_id).first()
+    if task is None:
+        raise TaskNotFoundError(task_id)
+    return task
 
-def delete_task_service(task_id: int):
-    for task in tasks:
-        if task.id == task_id:
-            tasks.remove(task)
-            return task
-    raise TaskNotFoundError(task_id)
+def get_tasks_service(db: Session):
+    tasks = db.query(TaskModel).all()
+    return tasks
+
+def delete_task_service(db: Session, task_id: int):
+    task = db.query(TaskModel).filter(TaskModel.id == task_id).first()
+    if task is None:
+        raise TaskNotFoundError(task_id)
+    db.delete(task)
+    db.commit()
+    return task
         
