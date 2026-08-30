@@ -1,5 +1,6 @@
 import json
 
+from agent.tool_dispatch import TOOL_REGISTRY
 from services.exceptions import TaskNotFoundError
 from services.task_service import update_task_service
 from database import SessionLocal
@@ -21,6 +22,15 @@ tools = [
 ]
 
 messages = [
+    {
+        "role": "system",
+        "content": (
+            "You are TaskPilot, an assistant that helps users manage their tasks. "
+            "You have access to tools for creating, reading, updating, and deleting tasks. "
+            "If a tool call fails (for example, a task ID doesn't exist), do not retry the same call. "
+            "Instead, explain the failure to the user in plain language and, if helpful, suggest what they might check."
+        )
+    },
     {"role": "user", "content": "Rename task 3 to 'Study French' and update its description to 'Complete tasks'"}
 ]
 
@@ -35,11 +45,19 @@ response = client.chat.completions.create(
 print(response.choices[0].message)
 
 assistant_message = response.choices[0].message
-tool_call = assistant_message.tool_calls[0]
-raw_args = json.loads(tool_call.function.arguments)
-validated_args = UpdateTaskToolArgs(**raw_args)
+# tool_call = assistant_message.tool_calls[0]
+# raw_args = json.loads(tool_call.function.arguments)
+# validated_args = UpdateTaskToolArgs(**raw_args)
 
-print(f"validated args {validated_args}")
+for tool_call in assistant_message.tool_calls:
+    function_to_call = TOOL_REGISTRY.get(tool_call.function.name)
+    print(f"selected: {function_to_call}")
+
+    raw_args = json.loads(tool_call.function.arguments)
+    validated_args = UpdateTaskToolArgs(**raw_args)
+    # print(f"selected: {function_to_call}")
+
+    # print(f"validated args {validated_args}")
 
 try:
     result = update_task_service(
@@ -52,6 +70,7 @@ try:
     print(result.id, result.title, result.description)
 except TaskNotFoundError as e:
     tool_result_content = f"Error: {e}"
+    # print(tool_result_content)
 finally:
     db.close()
     
@@ -70,4 +89,4 @@ final_response = client.chat.completions.create(
     tools=tools
 )
 
-print(final_response.choices[0].message.content)
+# print(f"final: {final_response.choices[0].message}")
