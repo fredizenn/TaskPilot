@@ -31,7 +31,7 @@ messages = [
             "Instead, explain the failure to the user in plain language and, if helpful, suggest what they might check."
         )
     },
-    {"role": "user", "content": "Rename task 3 to 'Study French' and update its description to 'Complete tasks'"}
+    {"role": "user", "content": "Rename task 2 to 'Study French' and update its description to 'Complete tasks'"}
 ]
 
 
@@ -49,39 +49,42 @@ assistant_message = response.choices[0].message
 # raw_args = json.loads(tool_call.function.arguments)
 # validated_args = UpdateTaskToolArgs(**raw_args)
 
+messages.append(assistant_message)
+
 for tool_call in assistant_message.tool_calls:
-    function_to_call = TOOL_REGISTRY.get(tool_call.function.name)
+    selected_tool = TOOL_REGISTRY.get(tool_call.function.name)
+    function_to_call = selected_tool[1]
+    validator = selected_tool[0]
     print(f"selected: {function_to_call}")
 
     raw_args = json.loads(tool_call.function.arguments)
-    validated_args = UpdateTaskToolArgs(**raw_args)
+    validated_args = validator(**raw_args)
     # print(f"selected: {function_to_call}")
 
     # print(f"validated args {validated_args}")
 
-try:
-    result = update_task_service(
-        db,
-        validated_args.task_id,
-        validated_args.title,
-        validated_args.description
-    )
-    tool_result_content = f"Task updated: id={result.id}, title='{result.title}', description='{result.description}'"
-    print(result.id, result.title, result.description)
-except TaskNotFoundError as e:
-    tool_result_content = f"Error: {e}"
-    # print(tool_result_content)
-finally:
-    db.close()
+    try:
+        result = update_task_service(
+            db,
+            validated_args.task_id,
+            validated_args.title,
+            validated_args.description
+        )
+        tool_result_content = f"Task updated: id={result.id}, title='{result.title}', description='{result.description}'"
+        print(result.id, result.title, result.description)
+    except TaskNotFoundError as e:
+        tool_result_content = f"Error: {e}"
+        # print(tool_result_content)
+    finally:
+        db.close()
     
     
     
-messages.append(assistant_message)
-messages.append({
-    "role": "tool",
-    "tool_call_id": tool_call.id,
-    "content": tool_result_content
-})
+    messages.append({
+        "role": "tool",
+        "tool_call_id": tool_call.id,
+        "content": tool_result_content
+    })
     
 final_response = client.chat.completions.create(
     model="gpt-4o-mini",
@@ -89,4 +92,4 @@ final_response = client.chat.completions.create(
     tools=tools
 )
 
-# print(f"final: {final_response.choices[0].message}")
+print(f"final: {final_response.choices[0].message}")
